@@ -34,11 +34,11 @@ module.exports = {
         numberOfAddresses: 1,
       }),
       network_id: 1, // Add the network ID for Ethereum mainnet
-      gasPrice: 40000000000, // 40 Gwei or higher than the current base fee
+      gasPrice: 50000000000, // 40 Gwei or higher than the current base fee
       confirmations: 2,
       timeoutBlocks: 200,
       skipDryRun: true,
-      gas: 10000000, // adjust this value based on your contract's complexity
+      gas: 20000000, // adjust this value based on your contract's complexity
     },
   },
   mocha: {},

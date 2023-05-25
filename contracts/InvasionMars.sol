@@ -33,9 +33,6 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
     mapping (address => bool) private _isExcluded;
     address[] private _excluded;
 
-    address public constant PLSU_TOKEN = 0xF8Ee97F93155a16ea4A893e4d5B8Bbad659e0b0A; 
-    address public constant PLSU_ETH_PAIR = 0xb819DBF8C9472641638F76f567590BfA6E16cB3E;
-
     mapping (address => bool) private botWallets;
     bool botscantrade = false;
     
@@ -63,10 +60,10 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
 
     IUniswapV2Router02 public uniswapV2Router;
     address public uniswapV2Pair;
-    bool private uniswapInitialized = true;
+    bool private uniswapInitialized = false;
     
     bool inSwapAndLiquify;
-    bool public swapAndLiquifyEnabled = true;
+    bool public swapAndLiquifyEnabled = false;
     
     uint256 public _maxTxAmount = (_tTotal * 1) / 100; //Transaction amount deals with MAX buy/sell, Update before MAINNET
 
@@ -89,18 +86,24 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
         constructor () {
     _rOwned[_msgSender()] = _rTotal;
 
+    address airdropWallet = 0xa629f2De5a6E2cB4e96B84c0384b39EeEf960181;
     address liquidityWallet = 0x485274011c264882519A51E6F0054D3198521cDF;
     address exchangesWallet = 0x17f81dF33F90F96937d99F672cf2C914D49f6D93;
 
+    uint256 airdropAmount = _tTotal.mul(5).div(100); // 5%
     uint256 liquidityAmount = _tTotal.mul(5).div(100); // 5%
     uint256 exchangesAmount = _tTotal.mul(20).div(100); // 20%
 
     // Transfer tokens to the specified wallets
+    _transfer(_msgSender(), airdropWallet, airdropAmount);
     _transfer(_msgSender(), liquidityWallet, liquidityAmount);
     _transfer(_msgSender(), exchangesWallet, exchangesAmount);
 
     _isExcludedFromFee[owner()] = true;
     _isExcludedFromFee[address(this)] = true;
+    _isExcludedFromFee[airdropWallet] = true;
+    _isExcludedFromFee[liquidityWallet] = true;
+    _isExcludedFromFee[exchangesWallet] = true;
 
     emit Transfer(address(0), _msgSender(), _tTotal);
 }
@@ -118,6 +121,7 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
 
         uniswapInitialized = true;
     }
+
 
     function name() public pure returns (string memory) {
         return _name;
@@ -435,10 +439,11 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
         require(from != address(0), "ERC20: transfer from the zero address");
         require(to != address(0), "ERC20: transfer to the zero address");
         require(amount > 0, "Transfer amount must be greater than zero");
-        if(from != owner() && to != owner())
-            require(amount <= _maxTxAmount, "Transfer amount exceeds the maxTxAmount.");        
+        if (from != owner() && to != owner())
+            require(amount <= _maxTxAmount, "Transfer amount exceeds the maxTxAmount.");
+
         uint256 contractTokenBalance = balanceOf(address(this));
-        uint256 thresholdAmount = totalSupply().mul(swapThresholdPercent).div(100); 
+        uint256 thresholdAmount = totalSupply().mul(swapThresholdPercent).div(100);
 
         bool overMinTokenBalance = contractTokenBalance >= thresholdAmount;
         if (
@@ -448,54 +453,46 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
             swapAndLiquifyEnabled
         ) {
             contractTokenBalance = thresholdAmount;
-            
-            swapAndLiquify(contractTokenBalance);
+
+            swapTokensForEth(contractTokenBalance);
         }
 
         bool takeFee = true;
-        
-        if(_isExcludedFromFee[from] || _isExcludedFromFee[to]){
+
+        if (_isExcludedFromFee[from] || _isExcludedFromFee[to]) {
             takeFee = false;
-        }    
-        
-        _tokenTransfer(from,to,amount,takeFee);
+        }
+
+        _tokenTransfer(from, to, amount, takeFee);
     }
 
     function swapAndLiquify(uint256 contractTokenBalance) private lockTheSwap {
-        
-        
-        uint256 halfForIM69 = contractTokenBalance.div(4);
-        uint256 halfForPLSU = contractTokenBalance.sub(halfForIM69).div(2);
-        uint256 otherHalf = contractTokenBalance.sub(halfForIM69).sub(halfForPLSU);
+        uint256 halfForIM69 = contractTokenBalance.div(2);
+        uint256 otherHalf = contractTokenBalance.sub(halfForIM69);
 
         uint256 initialBalance = address(this).balance;
 
-        
-        swapTokensForEth(halfForIM69.add(halfForPLSU));
+        swapTokensForEth(halfForIM69);
 
         uint256 newBalance = address(this).balance.sub(initialBalance);
         uint256 marketingshare = newBalance.mul(marketingFeePercent).div(100);
         payable(marketingWallet).transfer(marketingshare);
         newBalance -= marketingshare;
         addLiquidity(halfForIM69, newBalance.div(2));
-        addLiquidityPLSU(halfForPLSU, newBalance.div(2));
 
-        emit SwapAndLiquify(halfForIM69.add(halfForPLSU), newBalance, otherHalf);
+        emit SwapAndLiquify(halfForIM69, newBalance, otherHalf);
     }
 
-
     function swapTokensForEth(uint256 tokenAmount) private {
-        
         address[] memory path = new address[](2);
         path[0] = address(this);
         path[1] = uniswapV2Router.WETH();
 
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 
-        
         uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
             tokenAmount,
-            0, 
+            0,
             path,
             address(this),
             block.timestamp
@@ -503,54 +500,18 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
     }
 
     function addLiquidity(uint256 tokenAmount, uint256 ethAmount) private {
-        
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 
-        
         uniswapV2Router.addLiquidityETH{value: ethAmount}(
             address(this),
             tokenAmount,
-            0, 
-            0, 
+            0,
+            0,
             owner(),
             block.timestamp
         );
     }
 
-    function swapEthForPLSU(uint256 ethAmount) private {
-        
-        address[] memory path = new address[](2);
-        path[0] = uniswapV2Router.WETH();
-        path[1] = PLSU_TOKEN;
-
-        
-        uniswapV2Router.swapExactETHForTokensSupportingFeeOnTransferTokens{value: ethAmount}(
-            0, 
-            path,
-            address(this),
-            block.timestamp
-        );
-    }
-
-    function addLiquidityPLSU(uint256 ethAmount, uint256 tokenAmount) private {
-        
-        swapEthForPLSU(ethAmount);
-
-        
-        IERC20(PLSU_TOKEN).approve(address(uniswapV2Router), tokenAmount);
-
-        
-        uniswapV2Router.addLiquidityETH{value: ethAmount}(
-            PLSU_TOKEN,
-            tokenAmount,
-            0, 
-            0, 
-            owner(),
-            block.timestamp
-        );
-    }
-
-    
     function _tokenTransfer(address sender, address recipient, uint256 amount,bool takeFee) private {
         if(!canTrade){
             require(sender == owner()); 
@@ -572,6 +533,7 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
     } else {
         _transferStandard(sender, recipient, amount);
     }
+        
         if(!takeFee)
             restoreAllFee();
     }
