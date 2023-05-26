@@ -83,30 +83,37 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
         inSwapAndLiquify = false;
     }
     
-        constructor () {
+        constructor() {
     _rOwned[_msgSender()] = _rTotal;
 
     address airdropWallet = 0xa629f2De5a6E2cB4e96B84c0384b39EeEf960181;
     address liquidityWallet = 0x485274011c264882519A51E6F0054D3198521cDF;
     address exchangesWallet = 0x17f81dF33F90F96937d99F672cf2C914D49f6D93;
 
-    uint256 airdropAmount = _tTotal.mul(5).div(100); // 5%
-    uint256 liquidityAmount = _tTotal.mul(5).div(100); // 5%
-    uint256 exchangesAmount = _tTotal.mul(20).div(100); // 20%
+    uint256 airdropAmount = 5 * (10 ** 12) * (10 ** 18); // 5 trillion tokens
+    uint256 liquidityAmount = 5 * (10 ** 12) * (10 ** 18); // 5 trillion tokens
+    uint256 exchangesAmount = 20 * (10 ** 12) * (10 ** 18); // 20 trillion tokens
 
     // Transfer tokens to the specified wallets
-    _transfer(_msgSender(), airdropWallet, airdropAmount);
-    _transfer(_msgSender(), liquidityWallet, liquidityAmount);
-    _transfer(_msgSender(), exchangesWallet, exchangesAmount);
+    _transfer(address(this), airdropWallet, airdropAmount);
+    _transfer(address(this), liquidityWallet, liquidityAmount);
+    _transfer(address(this), exchangesWallet, exchangesAmount);
+
+    // Approve the wallets to spend their allocated tokens
+    _approve(address(this), airdropWallet, airdropAmount);
+    _approve(address(this), liquidityWallet, liquidityAmount);
+    _approve(address(this), exchangesWallet, exchangesAmount);
+
+    // Approve the owner to spend all tokens
+    _approve(address(this), owner(), _tTotal);
 
     _isExcludedFromFee[owner()] = true;
     _isExcludedFromFee[address(this)] = true;
-    _isExcludedFromFee[airdropWallet] = true;
-    _isExcludedFromFee[liquidityWallet] = true;
-    _isExcludedFromFee[exchangesWallet] = true;
 
     emit Transfer(address(0), _msgSender(), _tTotal);
 }
+
+
 
 
     function initializeUniswap() external onlyOwner {
