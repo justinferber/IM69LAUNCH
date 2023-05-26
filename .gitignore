@@ -1,5 +1,4 @@
 .env
 node_modules
 IM69Airdrop.csv
-node_modules
-node_modules
+truffle-config.js

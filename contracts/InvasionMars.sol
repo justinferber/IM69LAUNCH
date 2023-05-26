@@ -1,11 +1,4 @@
 // SPDX-License-Identifier: MIT
-/** 
-Telegram Portal: https://t.me/pulseunity1
-Website: https://spacecampmars.com
-Twitter: https://twitter.com/pulseunity1
-NFTS: https://pulseunity.com
-WIKI: https://unityindefi.com
- */
 pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/utils/Context.sol";
@@ -33,6 +26,9 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
     mapping (address => bool) private _isExcluded;
     address[] private _excluded;
 
+    address public constant PLSU_TOKEN = 0xF8Ee97F93155a16ea4A893e4d5B8Bbad659e0b0A; 
+    address public constant PLSU_ETH_PAIR = 0xb819DBF8C9472641638F76f567590BfA6E16cB3E;
+
     mapping (address => bool) private botWallets;
     bool botscantrade = false;
     
@@ -42,7 +38,7 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
     uint256 private constant _tTotal = 69 * (10 ** 12) * (10 ** 18);
     uint256 private _rTotal = (MAX - (MAX % _tTotal));
     uint256 private _tFeeTotal;
-    address public marketingWallet = 0xa629f2De5a6E2cB4e96B84c0384b39EeEf960181;
+    address public marketingWallet = 0xBc8e8e75Aa42284d9587160F8212852311Bf917B;
 
     string private constant _name = "InvasionMars";
     string private constant _symbol = "IM69";
@@ -83,38 +79,17 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
         inSwapAndLiquify = false;
     }
     
-        constructor() {
-    _rOwned[_msgSender()] = _rTotal;
+        constructor () {
+        _rOwned[_msgSender()] = _rTotal;
+            
+        
+        _isExcludedFromFee[owner()] = true;
+        _isExcludedFromFee[address(this)] = true;
+            
+        emit Transfer(address(0), _msgSender(), _tTotal);
+    }
 
-    address airdropWallet = 0xa629f2De5a6E2cB4e96B84c0384b39EeEf960181;
-    address liquidityWallet = 0x485274011c264882519A51E6F0054D3198521cDF;
-    address exchangesWallet = 0x17f81dF33F90F96937d99F672cf2C914D49f6D93;
-
-    uint256 airdropAmount = 5 * (10 ** 12) * (10 ** 18); // 5 trillion tokens
-    uint256 liquidityAmount = 5 * (10 ** 12) * (10 ** 18); // 5 trillion tokens
-    uint256 exchangesAmount = 20 * (10 ** 12) * (10 ** 18); // 20 trillion tokens
-
-    // Transfer tokens to the specified wallets
-    _transfer(address(this), airdropWallet, airdropAmount);
-    _transfer(address(this), liquidityWallet, liquidityAmount);
-    _transfer(address(this), exchangesWallet, exchangesAmount);
-
-    // Approve the wallets to spend their allocated tokens
-    _approve(address(this), airdropWallet, airdropAmount);
-    _approve(address(this), liquidityWallet, liquidityAmount);
-    _approve(address(this), exchangesWallet, exchangesAmount);
-
-    // Approve the owner to spend all tokens
-    _approve(address(this), owner(), _tTotal);
-
-    _isExcludedFromFee[owner()] = true;
-    _isExcludedFromFee[address(this)] = true;
-
-    emit Transfer(address(0), _msgSender(), _tTotal);
-}
-
-
-
+    
 
     function initializeUniswap() external onlyOwner {
         require(!uniswapInitialized, "Uniswap has already been initialized.");
@@ -126,7 +101,106 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory()).createPair(address(this), _uniswapV2Router.WETH());
         uniswapV2Router = _uniswapV2Router;
 
-        uniswapInitialized = true;
+        uniswapInitialized = false;
+    }
+
+    function addLiquidity(
+        uint256 tokenAmount,
+        uint256 ethMinAmount,
+        uint256 tokenMinAmount,
+        address to,
+        uint256 deadline
+    ) external payable onlyOwner {
+        require(uniswapInitialized, "Uniswap has not been initialized yet.");
+
+        
+        _transfer(msg.sender, address(this), tokenAmount);
+
+        
+        _approve(address(this), address(uniswapV2Router), tokenAmount);
+
+        
+        (uint256 amountToken, uint256 amountETH, uint256 liquidity) = uniswapV2Router.addLiquidityETH{value: msg.value}(
+            address(this),
+            tokenAmount,
+            tokenMinAmount,
+            ethMinAmount,
+            to,
+            deadline
+        );
+
+        
+        if (initialTokenLiquidity == 0) {
+            initialTokenLiquidity = tokenAmount;
+        }
+
+        
+        delete amountToken;
+        delete amountETH;
+        delete liquidity;
+    }
+
+
+    function removeLiquidity(
+        uint256 liquidity,
+        uint256 amountTokenMin,
+        uint256 amountETHMin,
+        address to,
+        uint256 deadline
+    ) external onlyOwner {
+        require(uniswapInitialized, "Uniswap has not been initialized yet.");
+
+        
+        IERC20(uniswapV2Pair).transferFrom(msg.sender, address(this), liquidity);
+
+        
+        IERC20(uniswapV2Pair).approve(address(uniswapV2Router), liquidity);
+
+        
+        uniswapV2Router.removeLiquidityETH(
+            address(this),
+            liquidity,
+            amountTokenMin,
+            amountETHMin,
+            to,
+            deadline
+        );
+    }
+
+    function getLiquidityFeesEarned() public view returns (uint256) {
+        require(uniswapInitialized, "Uniswap has not been initialized yet.");
+
+        
+        (uint256 reserve0, , ) = IUniswapV2Pair(uniswapV2Pair).getReserves();
+        
+        uint256 feesEarned = reserve0.sub(initialTokenLiquidity);
+
+        return feesEarned;
+    }
+
+    function viewLiquidityFeesEarned() public view onlyOwner returns (uint256) {
+        (uint256 reserve0, , ) = IUniswapV2Pair(uniswapV2Pair).getReserves();
+        uint256 feesEarned = reserve0.sub(initialTokenLiquidity);
+        return feesEarned;
+    }
+
+    function withdrawLiquidityFees(uint256 amount) external onlyOwner {
+        require(uniswapInitialized, "Uniswap has not been initialized yet.");
+
+        uint256 feesEarned = getLiquidityFeesEarned();
+        require(amount <= feesEarned, "Amount exceeds available liquidity fees.");
+
+        
+        uint256 liquidity = IERC20(uniswapV2Pair).balanceOf(address(this));
+        IERC20(uniswapV2Pair).approve(address(uniswapV2Router), liquidity);
+        uniswapV2Router.removeLiquidityETH(
+            address(this),
+            liquidity,
+            0, 
+            0, 
+            msg.sender,
+            block.timestamp + 1800 
+        );
     }
 
 
@@ -446,11 +520,15 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
         require(from != address(0), "ERC20: transfer from the zero address");
         require(to != address(0), "ERC20: transfer to the zero address");
         require(amount > 0, "Transfer amount must be greater than zero");
-        if (from != owner() && to != owner())
+        if(from != owner() && to != owner())
             require(amount <= _maxTxAmount, "Transfer amount exceeds the maxTxAmount.");
 
+        
+        
+        
+        
         uint256 contractTokenBalance = balanceOf(address(this));
-        uint256 thresholdAmount = totalSupply().mul(swapThresholdPercent).div(100);
+        uint256 thresholdAmount = totalSupply().mul(swapThresholdPercent).div(100); 
 
         bool overMinTokenBalance = contractTokenBalance >= thresholdAmount;
         if (
@@ -460,46 +538,62 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
             swapAndLiquifyEnabled
         ) {
             contractTokenBalance = thresholdAmount;
-
-            swapTokensForEth(contractTokenBalance);
+            
+            swapAndLiquify(contractTokenBalance);
         }
 
+        
+        
         bool takeFee = true;
-
-        if (_isExcludedFromFee[from] || _isExcludedFromFee[to]) {
+        
+        
+        if(_isExcludedFromFee[from] || _isExcludedFromFee[to]){
             takeFee = false;
         }
-
-        _tokenTransfer(from, to, amount, takeFee);
+        
+        
+        _tokenTransfer(from,to,amount,takeFee);
     }
 
     function swapAndLiquify(uint256 contractTokenBalance) private lockTheSwap {
-        uint256 halfForIM69 = contractTokenBalance.div(2);
-        uint256 otherHalf = contractTokenBalance.sub(halfForIM69);
+        
+        
+        uint256 halfForIM69 = contractTokenBalance.div(4);
+        uint256 halfForPLSU = contractTokenBalance.sub(halfForIM69).div(2);
+        uint256 otherHalf = contractTokenBalance.sub(halfForIM69).sub(halfForPLSU);
 
         uint256 initialBalance = address(this).balance;
 
-        swapTokensForEth(halfForIM69);
+        
+        swapTokensForEth(halfForIM69.add(halfForPLSU));
 
         uint256 newBalance = address(this).balance.sub(initialBalance);
         uint256 marketingshare = newBalance.mul(marketingFeePercent).div(100);
         payable(marketingWallet).transfer(marketingshare);
         newBalance -= marketingshare;
+
+        
         addLiquidity(halfForIM69, newBalance.div(2));
 
-        emit SwapAndLiquify(halfForIM69, newBalance, otherHalf);
+        
+        addLiquidityPLSU(halfForPLSU, newBalance.div(2));
+
+        emit SwapAndLiquify(halfForIM69.add(halfForPLSU), newBalance, otherHalf);
     }
 
+
     function swapTokensForEth(uint256 tokenAmount) private {
+        
         address[] memory path = new address[](2);
         path[0] = address(this);
         path[1] = uniswapV2Router.WETH();
 
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 
+        
         uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
             tokenAmount,
-            0,
+            0, 
             path,
             address(this),
             block.timestamp
@@ -507,18 +601,55 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
     }
 
     function addLiquidity(uint256 tokenAmount, uint256 ethAmount) private {
+        
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 
+        
         uniswapV2Router.addLiquidityETH{value: ethAmount}(
             address(this),
             tokenAmount,
-            0,
-            0,
+            0, 
+            0, 
             owner(),
             block.timestamp
         );
     }
 
+    function swapEthForPLSU(uint256 ethAmount) private {
+        
+        address[] memory path = new address[](2);
+        path[0] = uniswapV2Router.WETH();
+        path[1] = PLSU_TOKEN;
+
+        
+        uniswapV2Router.swapExactETHForTokensSupportingFeeOnTransferTokens{value: ethAmount}(
+            0, 
+            path,
+            address(this),
+            block.timestamp
+        );
+    }
+
+
+    function addLiquidityPLSU(uint256 ethAmount, uint256 tokenAmount) private {
+        
+        swapEthForPLSU(ethAmount);
+
+        
+        IERC20(PLSU_TOKEN).approve(address(uniswapV2Router), tokenAmount);
+
+        
+        uniswapV2Router.addLiquidityETH{value: ethAmount}(
+            PLSU_TOKEN,
+            tokenAmount,
+            0, 
+            0, 
+            owner(),
+            block.timestamp
+        );
+    }
+
+    
     function _tokenTransfer(address sender, address recipient, uint256 amount,bool takeFee) private {
         if(!canTrade){
             require(sender == owner()); 
