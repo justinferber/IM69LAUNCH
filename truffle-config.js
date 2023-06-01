@@ -8,11 +8,11 @@ const private_keys = [
 
 module.exports = {
   networks: {
-    development: {
-      // host: "127.0.0.1",
-      // port: 8545,
-      // network_id: "*",
-    },
+    // development: {
+    //   host: 127.0.0.1,
+    //   port: 8545,
+    //   network_id: 1337,
+    // },
     goerli: {
       provider: () => new HDWalletProvider({
         privateKeys: private_keys,
@@ -24,23 +24,25 @@ module.exports = {
       confirmations: 2,
       timeoutBlocks: 200,
       skipDryRun: true,
-      gas: 10000000, // adjust this value based on your contract's complexity
+      gas: 30000000, // adjust this value based on your contract's complexity
     },
 
-    mainnet: {
-      // provider: () => new HDWalletProvider({
-      //   privateKeys: private_keys,
-      //   providerOrUrl: process.env.INFURA_ENDPOINT,
-      //   numberOfAddresses: 1,
-      // }),
-      // network_id: 1, // Add the network ID for Ethereum mainnet
-      // gasPrice: 50000000000, // 40 Gwei or higher than the current base fee
-      // confirmations: 2,
-      // timeoutBlocks: 200,
-      // skipDryRun: true,
-      // gas: 20000000, // adjust this value based on your contract's complexity
-    },
+
+    // mainnet: {
+    //   provider: () => new HDWalletProvider({
+    //     privateKeys: private_keys,
+    //     providerOrUrl: process.env.INFURA_ENDPOINT,
+    //     numberOfAddresses: 1,
+    //   }),
+    //   network_id: 1, // Add the network ID for Ethereum mainnet
+    //   gasPrice: 50000000000, // 40 Gwei or higher than the current base fee
+    //   confirmations: 2,
+    //   timeoutBlocks: 200,
+    //   skipDryRun: true,
+    //   gas: 20000000, // adjust this value based on your contract's complexity
+    // },
   },
+
   mocha: {},
   compilers: {
     solc: {
@@ -48,7 +50,7 @@ module.exports = {
       settings: {
         optimizer: {
           enabled: true,
-          runs: 210,
+          runs: 200,
         },
       },
     },

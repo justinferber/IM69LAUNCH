@@ -1,4 +1,11 @@
 // SPDX-License-Identifier: MIT
+/** 
+Telegram Portal: https://t.me/pulseunity1
+Website: https://spacecampmars.com
+Twitter: https://twitter.com/pulseunity1
+NFTS: https://pulseunity.com
+WIKI: https://unityindefi.com
+ */
 pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/utils/Context.sol";
@@ -12,7 +19,6 @@ import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 
-
 contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
     using SafeMath for uint256;
     using Address for address;
@@ -25,9 +31,6 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
 
     mapping (address => bool) private _isExcluded;
     address[] private _excluded;
-
-    address public constant PLSU_TOKEN = 0xF8Ee97F93155a16ea4A893e4d5B8Bbad659e0b0A; 
-    address public constant PLSU_ETH_PAIR = 0xb819DBF8C9472641638F76f567590BfA6E16cB3E;
 
     mapping (address => bool) private botWallets;
     bool botscantrade = false;
@@ -49,21 +52,21 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
 
     uint256 public marketingFeePercent = 38; 
     
-    uint256 public _liquidityFee = 7; 
+    uint256 public _liquidityFee = 7;
     uint256 private _previousLiquidityFee = _liquidityFee;
 
     uint256 public initialTokenLiquidity;
 
     IUniswapV2Router02 public uniswapV2Router;
     address public uniswapV2Pair;
-    bool private uniswapInitialized = false;
+    bool private uniswapInitialized = true;
     
     bool inSwapAndLiquify;
-    bool public swapAndLiquifyEnabled = false;
+    bool public swapAndLiquifyEnabled = true;
     
-    uint256 public _maxTxAmount = (_tTotal * 1) / 100; //Transaction amount deals with MAX buy/sell, Update before MAINNET
+    uint256 public _maxTxAmount = _tTotal / 100; //Transaction amount deals with MAX buy/sell, Update before MAINNET
 
-   uint256 public swapThresholdPercent = 1; 
+    uint256 public swapThresholdPercent = 1; 
     
     event MinTokensBeforeSwapUpdated(uint256 minTokensBeforeSwap);
     event SwapAndLiquifyEnabledUpdated(bool enabled);
@@ -79,30 +82,20 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
         inSwapAndLiquify = false;
     }
     
-        constructor () {
+    constructor () {
         _rOwned[_msgSender()] = _rTotal;
-            
-        
+    
+        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+        uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory())
+            .createPair(address(this), _uniswapV2Router.WETH());
+
+        uniswapV2Router = _uniswapV2Router;
         _isExcludedFromFee[owner()] = true;
         _isExcludedFromFee[address(this)] = true;
-            
+    
         emit Transfer(address(0), _msgSender(), _tTotal);
     }
-
-    
-
-    function initializeUniswap() external onlyOwner {
-        require(!uniswapInitialized, "Uniswap has already been initialized.");
-
-        
-        address routerAddress = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
-
-        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(routerAddress);
-        uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory()).createPair(address(this), _uniswapV2Router.WETH());
-        uniswapV2Router = _uniswapV2Router;
-
-        uniswapInitialized = false;
-    }
+}
 
     function addLiquidity(
         uint256 tokenAmount,
@@ -419,8 +412,8 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
         emit SwapAndLiquifyEnabledUpdated(_enabled);
     }
     
-     
-    receive() external payable {}
+    receive() external payable {
+    }
 
     function _reflectFee(uint256 rFee, uint256 tFee) private {
         _rTotal = _rTotal.sub(rFee);
@@ -512,144 +505,53 @@ contract InvasionMars is Context, IERC20, ReentrancyGuard, Ownable {
         emit Approval(owner, spender, amount);
     }
 
-    function _transfer(
-        address from,
-        address to,
-        uint256 amount
-    ) private {
-        require(from != address(0), "ERC20: transfer from the zero address");
-        require(to != address(0), "ERC20: transfer to the zero address");
-        require(amount > 0, "Transfer amount must be greater than zero");
-        if(from != owner() && to != owner())
-            require(amount <= _maxTxAmount, "Transfer amount exceeds the maxTxAmount.");
-
-        
-        
-        
-        
-        uint256 contractTokenBalance = balanceOf(address(this));
-        uint256 thresholdAmount = totalSupply().mul(swapThresholdPercent).div(100); 
-
-        bool overMinTokenBalance = contractTokenBalance >= thresholdAmount;
-        if (
-            overMinTokenBalance &&
-            !inSwapAndLiquify &&
-            from != uniswapV2Pair &&
-            swapAndLiquifyEnabled
-        ) {
-            contractTokenBalance = thresholdAmount;
-            
-            swapAndLiquify(contractTokenBalance);
-        }
-
-        
-        
-        bool takeFee = true;
-        
-        
-        if(_isExcludedFromFee[from] || _isExcludedFromFee[to]){
-            takeFee = false;
-        }
-        
-        
-        _tokenTransfer(from,to,amount,takeFee);
-    }
-
     function swapAndLiquify(uint256 contractTokenBalance) private lockTheSwap {
-        
-        
-        uint256 halfForIM69 = contractTokenBalance.div(4);
-        uint256 halfForPLSU = contractTokenBalance.sub(halfForIM69).div(2);
-        uint256 otherHalf = contractTokenBalance.sub(halfForIM69).sub(halfForPLSU);
+    uint256 totalForIM69 = contractTokenBalance;
+    uint256 initialBalance = address(this).balance;
 
-        uint256 initialBalance = address(this).balance;
+    // Swap tokens for ETH.
+    swapTokensForEth(totalForIM69);
 
-        
-        swapTokensForEth(halfForIM69.add(halfForPLSU));
+    uint256 newBalance = address(this).balance.sub(initialBalance);
+    uint256 marketingshare = newBalance.mul(marketingFeePercent).div(100);
+    payable(marketingWallet).transfer(marketingshare);
+    newBalance -= marketingshare;
 
-        uint256 newBalance = address(this).balance.sub(initialBalance);
-        uint256 marketingshare = newBalance.mul(marketingFeePercent).div(100);
-        payable(marketingWallet).transfer(marketingshare);
-        newBalance -= marketingshare;
+    // Add liquidity to IM69.
+    addLiquidity(totalForIM69, newBalance);
 
-        
-        addLiquidity(halfForIM69, newBalance.div(2));
+    emit SwapAndLiquify(totalForIM69, newBalance, 0);
+}
 
-        
-        addLiquidityPLSU(halfForPLSU, newBalance.div(2));
+function swapTokensForEth(uint256 tokenAmount) private {
+    address[] memory path = new address[](2);
+    path[0] = address(this);
+    path[1] = uniswapV2Router.WETH();
 
-        emit SwapAndLiquify(halfForIM69.add(halfForPLSU), newBalance, otherHalf);
-    }
+    _approve(address(this), address(uniswapV2Router), tokenAmount);
 
+    uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+        tokenAmount,
+        0, 
+        path,
+        address(this),
+        block.timestamp
+    );
+}
 
-    function swapTokensForEth(uint256 tokenAmount) private {
-        
-        address[] memory path = new address[](2);
-        path[0] = address(this);
-        path[1] = uniswapV2Router.WETH();
+function addLiquidity(uint256 tokenAmount, uint256 ethAmount) private {
+    _approve(address(this), address(uniswapV2Router), tokenAmount);
 
-        _approve(address(this), address(uniswapV2Router), tokenAmount);
+    uniswapV2Router.addLiquidityETH{value: ethAmount}(
+        address(this),
+        tokenAmount,
+        0, 
+        0, 
+        owner(),
+        block.timestamp
+    );
+}
 
-        
-        uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            tokenAmount,
-            0, 
-            path,
-            address(this),
-            block.timestamp
-        );
-    }
-
-    function addLiquidity(uint256 tokenAmount, uint256 ethAmount) private {
-        
-        _approve(address(this), address(uniswapV2Router), tokenAmount);
-
-        
-        uniswapV2Router.addLiquidityETH{value: ethAmount}(
-            address(this),
-            tokenAmount,
-            0, 
-            0, 
-            owner(),
-            block.timestamp
-        );
-    }
-
-    function swapEthForPLSU(uint256 ethAmount) private {
-        
-        address[] memory path = new address[](2);
-        path[0] = uniswapV2Router.WETH();
-        path[1] = PLSU_TOKEN;
-
-        
-        uniswapV2Router.swapExactETHForTokensSupportingFeeOnTransferTokens{value: ethAmount}(
-            0, 
-            path,
-            address(this),
-            block.timestamp
-        );
-    }
-
-
-    function addLiquidityPLSU(uint256 ethAmount, uint256 tokenAmount) private {
-        
-        swapEthForPLSU(ethAmount);
-
-        
-        IERC20(PLSU_TOKEN).approve(address(uniswapV2Router), tokenAmount);
-
-        
-        uniswapV2Router.addLiquidityETH{value: ethAmount}(
-            PLSU_TOKEN,
-            tokenAmount,
-            0, 
-            0, 
-            owner(),
-            block.timestamp
-        );
-    }
-
-    
     function _tokenTransfer(address sender, address recipient, uint256 amount,bool takeFee) private {
         if(!canTrade){
             require(sender == owner()); 
